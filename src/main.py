@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 import arcade
 import pymunk
+from pyglet.window import key as pyglet_key
 
 SCREEN_W = 960
 SCREEN_H = 640
@@ -132,6 +133,8 @@ class GameWindow(arcade.Window):
         self.enemy_meta: dict[arcade.Sprite, dict[str, float | tuple[float, float] | str]] = {}
         self.move_x = 0
         self.move_y = 0
+        self.keys = pyglet_key.KeyStateHandler()
+        self.push_handlers(self.keys)
 
         self.camera = arcade.Camera(self.width, self.height)
         self.ui_camera = arcade.Camera(self.width, self.height)
@@ -279,6 +282,8 @@ class GameWindow(arcade.Window):
         self.time_alive += delta_time
         self.oxy -= OXY_DRAIN_PER_SEC * delta_time
 
+        self.update_move_from_keys()
+
         mag = math.hypot(self.move_x, self.move_y)
         if mag > 0:
             scale = PLAYER_SPEED / mag
@@ -303,6 +308,21 @@ class GameWindow(arcade.Window):
 
         if self.oxy <= 0:
             self.state = STATE_OVER
+
+    def update_move_from_keys(self) -> None:
+        key = pyglet_key
+        mx = 0
+        my = 0
+        if self.keys[key.W] or self.keys[key.UP]:
+            my += 1
+        if self.keys[key.S] or self.keys[key.DOWN]:
+            my -= 1
+        if self.keys[key.A] or self.keys[key.LEFT]:
+            mx -= 1
+        if self.keys[key.D] or self.keys[key.RIGHT]:
+            mx += 1
+        self.move_x = mx
+        self.move_y = my
 
     def move_enemies(self, delta_time: float) -> None:
         if not self.physics or not self.player:
@@ -354,40 +374,33 @@ class GameWindow(arcade.Window):
         return arcade.has_line_of_sight(enemy.position, self.player.position, blockers)
 
     def resolve_blocking(self, prev_player: tuple[float, float], prev_enemies: dict[arcade.Sprite, tuple[float, float]]) -> None:
-        # Ось-за-осью, чтобы не проскальзывать по диагонали
+        def separate(sprite: arcade.Sprite, prev: tuple[float, float]) -> None:
+            if not arcade.check_for_collision_with_list(sprite, self.walls):
+                return
+            sx0, sy0 = prev
+            dx = sprite.center_x - sx0
+            dy = sprite.center_y - sy0
+            # сначала X
+            sprite.center_x = sx0 + dx
+            if arcade.check_for_collision_with_list(sprite, self.walls):
+                sprite.center_x = sx0
+                dx = 0
+            # потом Y
+            sprite.center_y = sy0 + dy
+            if arcade.check_for_collision_with_list(sprite, self.walls):
+                sprite.center_y = sy0
+                dy = 0
+            # если всё ещё застрял, откатить полностью
+            if arcade.check_for_collision_with_list(sprite, self.walls):
+                sprite.center_x, sprite.center_y = sx0, sy0
+            if self.physics:
+                self.physics.set_velocity(sprite, (0, 0))
+
         if self.player:
-            if arcade.check_for_collision_with_list(self.player, self.walls):
-                px0, py0 = prev_player
-                dx = self.player.center_x - px0
-                dy = self.player.center_y - py0
-                # сначала X
-                self.player.center_x = px0 + dx
-                if arcade.check_for_collision_with_list(self.player, self.walls):
-                    self.player.center_x = px0
-                    dx = 0
-                # потом Y
-                self.player.center_y = py0 + dy
-                if arcade.check_for_collision_with_list(self.player, self.walls):
-                    self.player.center_y = py0
-                    dy = 0
-                if self.physics:
-                    self.physics.set_velocity(self.player, (0, 0))
+            separate(self.player, prev_player)
 
         for enemy, prev in prev_enemies.items():
-            if arcade.check_for_collision_with_list(enemy, self.walls):
-                ex0, ey0 = prev
-                dx = enemy.center_x - ex0
-                dy = enemy.center_y - ey0
-                enemy.center_x = ex0 + dx
-                if arcade.check_for_collision_with_list(enemy, self.walls):
-                    enemy.center_x = ex0
-                    dx = 0
-                enemy.center_y = ey0 + dy
-                if arcade.check_for_collision_with_list(enemy, self.walls):
-                    enemy.center_y = ey0
-                    dy = 0
-                if self.physics:
-                    self.physics.set_velocity(enemy, (0, 0))
+            separate(enemy, prev)
 
     def handle_collisions(self) -> None:
         if not self.player:
@@ -466,47 +479,18 @@ class GameWindow(arcade.Window):
             return
         if self.state != STATE_PLAY:
             return
-
-        key = arcade.key
-        char = chr(symbol).lower() if isinstance(symbol, int) and 0 <= symbol < 0x110000 else ""
-
-        if symbol in (key.W, key.UP) or char == "ц":
-            self.move_y = 1
-        elif symbol in (key.S, key.DOWN) or char == "ы":
-            self.move_y = -1
-        elif symbol in (key.A, key.LEFT) or char == "ф":
-            self.move_x = -1
-        elif symbol in (key.D, key.RIGHT) or char == "в":
-            self.move_x = 1
+        # движение читается из KeyStateHandler в on_update; здесь ничего не меняем
 
     def on_text(self, text: str) -> None:
         if self.state != STATE_PLAY or not text:
             return
-        ch = text.lower()
-        if ch == "ц":
-            self.move_y = 1
-        elif ch == "ы":
-            self.move_y = -1
-        elif ch == "ф":
-            self.move_x = -1
-        elif ch == "в":
-            self.move_x = 1
+        # ввод текста для управления не используем — движение читается из KeyStateHandler
+        return
 
     def on_key_release(self, symbol: int, modifiers: int) -> None:
         if self.state != STATE_PLAY:
             return
-
-        key = arcade.key
-        char = chr(symbol).lower() if isinstance(symbol, int) and 0 <= symbol < 0x110000 else ""
-
-        if symbol in (key.W, key.S, key.UP, key.DOWN) or char in ("ц", "ы"):
-            self.move_y = 0
-        elif symbol in (key.A, key.D, key.LEFT, key.RIGHT) or char in ("ф", "в"):
-            self.move_x = 0
-        elif symbol is None:
-            # неизвестный/пустой символ — останавливаем движение
-            self.move_x = 0
-            self.move_y = 0
+        # движение обновляется в on_update через KeyStateHandler, здесь ничего не сбрасываем
 
 
 def main() -> None:
