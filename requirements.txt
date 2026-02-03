@@ -1,3 +1,1 @@
 arcade==2.6.17
-# arcade 2.6.17 pins pymunk~=6.4.0; stay within that range for resolver harmony
-pymunk~=6.4.0
