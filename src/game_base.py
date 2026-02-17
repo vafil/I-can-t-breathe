@@ -1,19 +1,16 @@
-from __future__ import annotations
-
 import math
 import pathlib
-import random
 import arcade
 
 SCREEN_W = 960
 SCREEN_H = 640
 TITLE = "I Can't Breathe"
 
- # пути к папкам
+# пути к файлам игры
 DATA = pathlib.Path(__file__).resolve().parent.parent / "data"
 ASSETS = pathlib.Path(__file__).resolve().parent.parent / "assets"
 
- # числа для игры
+# основные числа для баланса
 PLAYER_SPEED = 5
 ENEMY_SPEED = 120
 OXY_DRAIN_PER_SEC = 6
@@ -21,7 +18,7 @@ OXY_HIT_LOSS = 18
 LOW_OXY_THRESHOLD = 25
 MAX_OXY = 100
 
- # состояния экрана
+# состояния экрана
 STATE_MENU = "menu"
 STATE_PLAY = "play"
 STATE_OVER = "over"
@@ -29,13 +26,13 @@ STATE_CLEAR = "clear"
 
 
 class GameBase(arcade.Window):
-    """база игры, тут без анимации и без эффектов"""
+    """здесь базовая логика, анимация и эффекты добавляются в main.py"""
 
     def __init__(self) -> None:
         super().__init__(SCREEN_W, SCREEN_H, TITLE, update_rate=1 / 60)
         arcade.set_background_color(arcade.color.BLACK_OLIVE)
 
-        # что сейчас происходит
+        # текущее состояние игры
         self.state = STATE_MENU
         self.lvl = 1
         self.lvl_max = 5
@@ -43,9 +40,9 @@ class GameBase(arcade.Window):
         self.t_alive = 0.0
         self.anim_timer = 0.0
 
-        # спрайты и физика
-        self.p: arcade.Sprite | None = None
-        self.phys: arcade.PhysicsEngineSimple | None = None
+        # игрок и физика
+        self.p = None
+        self.phys = None
 
         self.walls = arcade.SpriteList()
         self.phys_walls = arcade.SpriteList()
@@ -55,9 +52,9 @@ class GameBase(arcade.Window):
         self.emitters: list[arcade.Emitter] = []
 
         self.dead_played = False
-        self.music_player: object | None = None
+        self.music_player = None
 
-        # кнопки
+        # какие кнопки зажаты
         self.mv_l = False
         self.mv_r = False
         self.mv_u = False
@@ -67,7 +64,7 @@ class GameBase(arcade.Window):
         self.cam = arcade.Camera(self.width, self.height)
         self.cam_ui = arcade.Camera(self.width, self.height)
 
-        # картинки
+        # текстуры персонажей
         self.player_tex = [
             arcade.load_texture(ASSETS / "models" / "player1.png"),
             arcade.load_texture(ASSETS / "models" / "player2.png"),
@@ -84,7 +81,7 @@ class GameBase(arcade.Window):
         self.s_start = arcade.load_sound(ASSETS / "audio" / "start.wav")
 
 
-    def play_sound(self, snd: arcade.Sound | None, vol: float = 0.6, loop: bool = False):
+    def play_sound(self, snd, vol=0.6, loop=False):
         if snd:
             try:
                 return snd.play(volume=vol, loop=loop)
@@ -92,11 +89,11 @@ class GameBase(arcade.Window):
                 return None
         return None
 
-    def start_music(self) -> None:
+    def start_music(self):
         if self.s_music and not self.music_player:
             self.music_player = self.play_sound(self.s_music, vol=0.25, loop=True)
 
-    def stop_music(self) -> None:
+    def stop_music(self):
         try:
             if self.music_player and hasattr(self.music_player, "pause"):
                 self.music_player.pause()
@@ -107,7 +104,7 @@ class GameBase(arcade.Window):
 
     # запуск уровня
 
-    def reset(self) -> None:
+    def reset(self):
         self.oxy = max(40, MAX_OXY - (self.lvl - 1) * 10)
         self.t_alive = 0.0
         self.anim_timer = 0.0
@@ -169,7 +166,7 @@ class GameBase(arcade.Window):
 
         self.state = STATE_PLAY
 
-    def advance_level(self) -> None:
+    def advance_level(self):
         self.lvl += 1
         if self.lvl > self.lvl_max:
             self.state = STATE_CLEAR
@@ -178,7 +175,7 @@ class GameBase(arcade.Window):
 
     # рисуем на экране
 
-    def on_draw(self) -> None:
+    def on_draw(self):
         self.clear()
 
         self.cam.use()
@@ -208,7 +205,7 @@ class GameBase(arcade.Window):
             arcade.draw_text("SPACE: сыграть ещё", 120, self.height * 0.48, arcade.color.LIGHT_GRAY, 16)
             self.draw_stats()
 
-    def draw_hud(self) -> None:
+    def draw_hud(self):
         r = max(0.0, min(1.0, self.oxy / MAX_OXY))
         bw = 220
         bh = 20
@@ -222,13 +219,13 @@ class GameBase(arcade.Window):
         if self.oxy <= LOW_OXY_THRESHOLD:
             arcade.draw_text("Мало кислорода!", x0, y0 - 72, arcade.color.APRICOT, 14)
 
-    def draw_stats(self) -> None:
+    def draw_stats(self):
         arcade.draw_text(f"Прошло времени: {self.t_alive:0.1f}s", 120, self.height * 0.38, arcade.color.LIGHT_GRAY, 16)
         arcade.draw_text(f"Последний уровень: {self.lvl}", 120, self.height * 0.32, arcade.color.LIGHT_GRAY, 16)
 
     # обновление игры
 
-    def on_update(self, dt: float) -> None:
+    def on_update(self, dt):
         if self.state != STATE_PLAY or not self.p or not self.phys:
             return
 
@@ -242,7 +239,7 @@ class GameBase(arcade.Window):
         self.update_emitters()
         self.update_camera()
 
-        # тут будет анимация и эффекты, но в другом файле
+        # анимация и эффекты описаны в main.py
         self.update_animation(dt)
 
         if self.oxy <= 0:
@@ -252,7 +249,7 @@ class GameBase(arcade.Window):
                 self.dead_played = True
             self.state = STATE_OVER
 
-    def update_player_vel(self) -> None:
+    def update_player_vel(self):
         if not self.p:
             return
         vx = 0
@@ -272,7 +269,7 @@ class GameBase(arcade.Window):
         self.p.change_x = vx
         self.p.change_y = vy
 
-    def update_foes(self, dt: float) -> None:
+    def update_foes(self, dt):
         if not self.p:
             return
         for foe in self.foes:
@@ -291,7 +288,7 @@ class GameBase(arcade.Window):
                 if arcade.check_for_collision_with_list(foe, self.phys_walls):
                     foe.center_y = y0
 
-    def handle_collisions(self) -> None:
+    def handle_collisions(self):
         if not self.p:
             return
 
@@ -310,31 +307,31 @@ class GameBase(arcade.Window):
         if arcade.check_for_collision_with_list(self.p, self.exits):
             self.advance_level()
 
-    # тут специально пусто, это будет в другом файле
+    # эти методы специально пустые, чтобы переопределить их в main.py
 
-    def update_animation(self, dt: float) -> None:
-        # анимации нет, это сделает main.py
+    def update_animation(self, dt):
+        # анимации тут нет
         pass
 
-    def spawn_fx(self, pos: tuple[float, float], col: arcade.Color) -> None:
-        # эффектов нет, это сделает main.py
+    def spawn_fx(self, pos, col):
+        # эффектов тут нет
         pass
 
     # частицы и камера
 
-    def update_emitters(self) -> None:
+    def update_emitters(self):
         for em in list(self.emitters):
             em.update()
             if em.can_reap():
                 self.emitters.remove(em)
 
-    def update_camera(self) -> None:
+    def update_camera(self):
         if not self.p:
             return
         target = (self.p.center_x - self.width / 2, self.p.center_y - self.height / 2)
         self.cam.move_to(target, 0.25)
 
-    def snap_camera_to_player(self) -> None:
+    def snap_camera_to_player(self):
         if not self.p:
             return
         target = (self.p.center_x - self.width / 2, self.p.center_y - self.height / 2)
@@ -342,7 +339,7 @@ class GameBase(arcade.Window):
 
     # нажатия клавиш
 
-    def on_key_press(self, sym: int, mod: int) -> None:
+    def on_key_press(self, sym, mod):
         if self.state == STATE_MENU and sym == arcade.key.SPACE:
             self.lvl = 1
             self.lvl_max = 5
@@ -366,7 +363,7 @@ class GameBase(arcade.Window):
         if sym in (arcade.key.S, arcade.key.DOWN):
             self.mv_d = True
 
-    def on_key_release(self, sym: int, mod: int) -> None:
+    def on_key_release(self, sym, mod):
         if self.state != STATE_PLAY:
             return
 
